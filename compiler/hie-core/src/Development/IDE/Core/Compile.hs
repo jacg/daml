@@ -89,7 +89,8 @@ typecheckModule
     -> IO ([FileDiagnostic], Maybe TcModuleResult)
 typecheckModule packageState deps pm =
     fmap (either (, Nothing) (second Just)) $
-    runGhcEnv packageState $
+    runGhcEnv packageState $ do
+        demoteTypeErrorsToWarnings
         catchSrcErrors "typecheck" $ do
             setupEnv deps
             (warnings, tcm) <- withWarnings "typecheck" $ \tweak ->
@@ -106,7 +107,8 @@ compileModule
     -> IO ([FileDiagnostic], Maybe CoreModule)
 compileModule packageState deps tmr =
     fmap (either (, Nothing) (second Just)) $
-    runGhcEnv packageState $
+    runGhcEnv packageState $ do
+        demoteTypeErrorsToWarnings
         catchSrcErrors "compile" $ do
             setupEnv (deps ++ [tmr])
 
@@ -129,6 +131,10 @@ compileModule packageState deps tmr =
 
             return (warnings, core)
 
+demoteTypeErrorsToWarnings :: Ghc ()
+demoteTypeErrorsToWarnings = do
+  modifyDynFlags (`gopt_set` Opt_DeferTypeErrors)
+  modifyDynFlags (`wopt_set` Opt_WarnDeferredTypeErrors)
 
 addRelativeImport :: ParsedModule -> DynFlags -> DynFlags
 addRelativeImport modu dflags = dflags

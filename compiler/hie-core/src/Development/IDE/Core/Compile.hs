@@ -95,7 +95,7 @@ typecheckModule packageState deps pm =
             (warnings, tcm) <- withWarnings "typecheck" $ \tweak ->
                 GHC.typecheckModule $ demoteTypeErrorsToWarnings pm{pm_mod_summary = tweak $ pm_mod_summary pm}
             tcm2 <- mkTcModuleResult tcm
-            return (warnings, tcm2)
+            return (map snd warnings, tcm2)
 
 -- | Compile a single type-checked module to a 'CoreModule' value, or
 -- provide errors.
@@ -127,7 +127,7 @@ compileModule packageState deps tmr =
                          (cg_binds tidy)
                          (mg_safe_haskell desugar)
 
-            return (warnings, core)
+            return (map snd warnings, core)
 
 
 demoteTypeErrorsToWarnings :: ParsedModule -> ParsedModule

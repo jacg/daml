@@ -90,11 +90,10 @@ typecheckModule
 typecheckModule packageState deps pm =
     fmap (either (, Nothing) (second Just)) $
     runGhcEnv packageState $ do
-        demoteTypeErrorsToWarnings
         catchSrcErrors "typecheck" $ do
             setupEnv deps
             (warnings, tcm) <- withWarnings "typecheck" $ \tweak ->
-                GHC.typecheckModule pm{pm_mod_summary = tweak $ pm_mod_summary pm}
+                GHC.typecheckModule $ demoteTypeErrorsToWarnings pm{pm_mod_summary = tweak $ pm_mod_summary pm}
             tcm2 <- mkTcModuleResult tcm
             return (warnings, tcm2)
 
@@ -108,7 +107,6 @@ compileModule
 compileModule packageState deps tmr =
     fmap (either (, Nothing) (second Just)) $
     runGhcEnv packageState $ do
-        demoteTypeErrorsToWarnings
         catchSrcErrors "compile" $ do
             setupEnv (deps ++ [tmr])
 
@@ -131,10 +129,19 @@ compileModule packageState deps tmr =
 
             return (warnings, core)
 
-demoteTypeErrorsToWarnings :: Ghc ()
-demoteTypeErrorsToWarnings = do
-  modifyDynFlags (`gopt_set` Opt_DeferTypeErrors)
-  modifyDynFlags (`wopt_set` Opt_WarnDeferredTypeErrors)
+
+demoteTypeErrorsToWarnings :: ParsedModule -> ParsedModule
+demoteTypeErrorsToWarnings = (update_pm_mod_summary . update_hspp_opts) demoteTEsToWarns
+
+demoteTEsToWarns :: DynFlags -> DynFlags
+demoteTEsToWarns = (`wopt_set` Opt_WarnDeferredTypeErrors) . (`gopt_set` Opt_DeferTypeErrors)
+
+update_hspp_opts :: (DynFlags -> DynFlags) -> ModSummary -> ModSummary
+update_hspp_opts up ms = ms{ms_hspp_opts = up $ ms_hspp_opts ms}
+
+update_pm_mod_summary :: (ModSummary -> ModSummary) -> ParsedModule -> ParsedModule
+update_pm_mod_summary up pm = pm{pm_mod_summary = up $ pm_mod_summary pm}
+
 
 addRelativeImport :: ParsedModule -> DynFlags -> DynFlags
 addRelativeImport modu dflags = dflags

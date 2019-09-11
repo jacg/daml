@@ -95,7 +95,15 @@ typecheckModule packageState deps pm =
             (warnings, tcm) <- withWarnings "typecheck" $ \tweak ->
                 GHC.typecheckModule $ demoteTypeErrorsToWarnings pm{pm_mod_summary = tweak $ pm_mod_summary pm}
             tcm2 <- mkTcModuleResult tcm
-            return (map snd warnings, tcm2)
+            return (map unDeferTypeError warnings, tcm2)
+
+unDeferTypeError :: (WarnReason, FileDiagnostic) -> FileDiagnostic
+unDeferTypeError ((Reason Opt_WarnDeferredTypeErrors), fd) = upgradeWarningToError fd
+unDeferTypeError (                                  _, fd) = fd
+
+upgradeWarningToError :: FileDiagnostic -> FileDiagnostic
+upgradeWarningToError (nfp, fd) = (nfp, fd{_severity = Just DsError})
+
 
 -- | Compile a single type-checked module to a 'CoreModule' value, or
 -- provide errors.
